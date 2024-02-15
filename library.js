@@ -5,6 +5,7 @@ const db = require.main.require('./src/database');
 const Notifications = require.main.require('./src/notifications');
 const routeHelpers = require.main.require('./src/routes/helpers');
 const controllerHelpers = require.main.require('./src/controllers/helpers');
+const sakamotoSanUID = 123456; // 办公用猫账号 UID
 
 const checkinConfig = nconf.get('checkin') || {
     postReward: true,
@@ -93,7 +94,13 @@ const Checkin = {
     }
 };
 
-async function doCheckin(uid) {
+async function doCheckin(uid) { // doCheckIn 原始逻辑已移动到 doRealCheckin
+    const sakamotoSanCheckinResult = await doRealCheckin(sakamotoSanUID, false); // 为 SakamotoSan 签到一下，获取签到结果
+    const force = sakamotoSanCheckinResult.continuousDay === 1 // 如果猫先生断签了，用户签到时则强制忽略断签 
+    return await doRealCheckin(uid, force); // 签一下用户
+}
+
+async function doRealCheckin(uid, forceYesterdayCheckedIn) {
     if (!uid) {
         throw new Error('[[error:not-logged-in]]');
     }
@@ -101,6 +108,7 @@ async function doCheckin(uid) {
     const now = Date.now();
     const today = dateKey(now);
     const yesterday = dateKey(now - 864e5);
+
     const checkedIn = await db.isSortedSetMember(`checkin-plugin:${today}`, uid);
 
     let reward = 0;
@@ -109,14 +117,19 @@ async function doCheckin(uid) {
             // This is rough check and might have some problem with multiple NodeBB instance
             throw new Error('[[checkin:too-busy]]');
         }
+
         try {
             checkingIn.add(uid);
             const [rank, checkedInYesterday, continuousDays, total] = await Promise.all([
-                db.increment(`checkin-plugin:rank:${today}`),
+                uid === sakamotoSanUID ? (db.get(`checkin-plugin:rank:${today}`) || 0) : db.increment(`checkin-plugin:rank:${today}`), // 处理一下办公用猫的 rank
                 db.isSortedSetMember(`checkin-plugin:${yesterday}`, uid),
                 User.getUserField(uid, 'checkinContinuousDays'),
                 db.sortedSetCard(`checkin-plugin:user:${uid}`)
             ]);
+
+            if (forceYesterdayCheckedIn) { // 是否强制设置连签状态
+                checkedInYesterday = true;
+            }
 
             const continuousDay = checkedInYesterday ? (parseInt(continuousDays) || 0) + 1 : 1;
 
@@ -159,7 +172,7 @@ async function doCheckin(uid) {
     const users = _.keyBy(await User.getUsersFields(uids, ['username', 'userslug']), 'uid')
 
     const [todayMembers, continuousMembers, totalMembers] = [todayList, continuousList, totalList]
-        .map(list => list.filter(item => users[item.value] !== undefined))
+        .map(list => list.filter(item => users[item.value] !== undefined).filter(item => users[item.value].uid !== sakamotoSanUID)) // 过滤 SamamotoSan 的 UID
         .map(list => list.map(item => ({
             username: users[item.value].username,
             userslug: users[item.value].userslug,
