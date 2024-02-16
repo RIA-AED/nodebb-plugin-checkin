@@ -2,24 +2,26 @@
 
 <!-- IF checkedIn -->
 <div class="alert alert-info" role="alert">
-    [[checkin:info-message, {rank}]]
+    [[checkin:info-message, {rankFixed}]]
     [[checkin:days-message, {continuousDay}, {total}]]
     <!-- IF postReward -->
     [[checkin:post-reward]]
     <!-- ENDIF postReward -->
+    [[checkin:server-last-status, {continuousCheckInBreaked}]]
 </div>
 <!-- ELSE -->
 <div class="alert alert-success" role="alert">
     <p>
         <strong>[[checkin:success]]</strong>
         [[checkin:success-message, {reward}]]
-        [[checkin:info-message, {rank}]]
+        [[checkin:info-message, {rankFixed}]]
     </p>
     <p>
         [[checkin:days-message, {continuousDay}, {total}]]
         <!-- IF postReward -->
         [[checkin:post-reward]]
         <!-- ENDIF postReward -->
+        [[checkin:server-last-status, {continuousCheckInBreaked}]]
     </p>
 </div>
 <!-- ENDIF checkedIn -->
