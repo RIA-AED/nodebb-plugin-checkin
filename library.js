@@ -5,7 +5,7 @@ const db = require.main.require('./src/database');
 const Notifications = require.main.require('./src/notifications');
 const routeHelpers = require.main.require('./src/routes/helpers');
 const controllerHelpers = require.main.require('./src/controllers/helpers');
-const sakamotoSanUID = 123456; // 办公用猫账号 UID
+const sakamotoSanUID = 2086; // 办公用猫账号 UID
 
 const checkinConfig = nconf.get('checkin') || {
     postReward: true,
@@ -121,7 +121,7 @@ async function doRealCheckin(uid, forceYesterdayCheckedIn) {
         try {
             checkingIn.add(uid);
             const [rank, checkedInYesterday, continuousDays, total] = await Promise.all([
-                uid === sakamotoSanUID ? (db.get(`checkin-plugin:rank:${today}`) || 0) : db.increment(`checkin-plugin:rank:${today}`), // 处理一下办公用猫的 rank
+                db.increment(`checkin-plugin:rank:${today}`), // 处理一下办公用猫的 rank
                 db.isSortedSetMember(`checkin-plugin:${yesterday}`, uid),
                 User.getUserField(uid, 'checkinContinuousDays'),
                 db.sortedSetCard(`checkin-plugin:user:${uid}`)
@@ -135,7 +135,7 @@ async function doRealCheckin(uid, forceYesterdayCheckedIn) {
 
             for (let item of checkinConfig.rewards) {
                 if (continuousDay >= (item.continuousDay || 0)) {
-                    reward = (rank === 1) ? item.firstReward
+                    reward = (rank === 1 || rank === 2) ? item.firstReward
                         : item.minReward + Math.floor(Math.random() * (item.maxReward - item.minReward + 1))
                 }
             }
@@ -176,19 +176,30 @@ async function doRealCheckin(uid, forceYesterdayCheckedIn) {
         .map(list => list.map(item => ({
             username: users[item.value].username,
             userslug: users[item.value].userslug,
-            score: item.score
+            score: item.score - 1
         })));
+
+    var continuousCheckInBreaked = "未知";
+
+    if (forceYesterdayCheckedIn) {
+        continuousCheckInBreaked = "是";
+    } else {
+        continuousCheckInBreaked = "否";
+    }
+
+    const rankFixed = rank - 1;
 
     return {
         checkedIn,
         postReward: checkinConfig.postReward && parseInt(userData.checkinPendingReward) > 0,
-        rank,
+        rankFixed,
         continuousDay: userData.checkinContinuousDays,
         reward,
         total,
         todayMembers,
         continuousMembers,
-        totalMembers
+        totalMembers,
+        continuousCheckInBreaked
     };
 }
 
